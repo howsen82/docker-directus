@@ -1,0 +1,87 @@
+version: '3.9'
+
+services:
+  directus:
+    container_name: directus
+    image: directus/directus:latest
+    hostname: directus
+    environment:
+      KEY: 255d861b-5ea1-5996-9aa3-922530ec40b1
+      SECRET: 6116487b-cda1-52c2-b5b5-c8022c45e263
+      DB_CLIENT: pg
+      DB_HOST: directus-db
+      DB_PORT: 5432
+      DB_DATABASE: directus
+      DB_USER: directususer
+      DB_PASSWORD: directuspass
+      CACHE_ENABLED: true
+      CACHE_STORE: redis
+      REDIS: redis://:redispass@redis:6379
+      # PUBLIC_URL: https://directus.yourname.synology.me
+      WEBSOCKETS_ENABLED: true
+      ADMIN_EMAIL: test@email.com
+      ADMIN_PASSWORD: password
+    volumes:
+      - /data/directus/uploads:/directus/uploads:rw
+      - /data/directus/extensions:/directus/extensions:rw
+    ports:
+      - 8055:8055
+    mem_limit: 1g
+    cpu_shares: 768
+    security_opt:
+      - no-new-privileges:true
+    restart: on-failure:5
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+  redis:
+    container_name: redis
+    image: redis:latest
+    hostname: redis
+    environment:
+      - TZ=Asia/Kuching
+    volumes:
+      - /data/directus/redis:/data:rw
+    mem_limit: 500m
+    mem_reservation: 256m
+    cpu_shares: 768
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    command:
+      - /bin/sh
+      - -c
+      - redis-server --requirepass redispass
+    user: 1026:100
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping || exit 1"]
+      interval: 10s
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  db:
+    container_name: postgres
+    image: postgis/postgis:latest
+    hostname: directus-db
+    environment:
+      - POSTGRES_DB=directus
+      - POSTGRES_USER=directususer
+      - POSTGRES_PASSWORD=directuspass
+    volumes:
+      - /data/directus/data:/var/lib/postgresql/data
+    restart: unless-stopped
+    mem_limit: 1g
+    cpu_shares: 768
+    # security_opt:
+    #   - no-new-privileges:true
+    # user: 1026:100
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-d", "directus", "-U", "directususer"]
+      timeout: 45s
+      interval: 10s
+      retries: 10
